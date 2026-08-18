@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import Logo from "@/components/Logo";
 
 const FEATURED_CATEGORIES = [
@@ -25,6 +26,14 @@ export default function HomePage() {
       <main className="flex-1">
         <section className="relative overflow-hidden bg-valley-900 text-parchment-50">
           <div className="mx-auto max-w-6xl px-6 py-24 md:py-32 text-center">
+            <Image
+              src="/logo.jpg"
+              alt="Emek E-LIBRARY"
+              width={140}
+              height={140}
+              className="mx-auto mb-6 h-28 w-28 md:h-36 md:w-36 rounded-2xl object-cover shadow-lg"
+              priority
+            />
             <p className="uppercase tracking-[0.3em] text-gold-400 text-xs font-semibold mb-4">
               Emek E-LIBRARY
             </p>
