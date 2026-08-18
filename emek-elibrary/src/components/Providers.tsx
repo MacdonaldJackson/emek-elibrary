@@ -5,16 +5,15 @@ import type { Session } from "next-auth";
 import { AIWidgetProvider } from "@/components/ai/AIWidgetContext";
 
 export default function Providers({
-    children,
-    session,
+  children,
+  session,
 }: {
-    children: React.ReactNode;
-    session?: Session | null;
+  children: React.ReactNode;
+  session?: Session | null;
 }) {
-    return (
-          <SessionProvider session={session}>
-                  <AIWidgetProvider>{children}</AIWidgetProvider>AIWidgetProvider>
-          </SessionProvider>SessionProvider>
-        );
+  return (
+    <SessionProvider session={session}>
+      <AIWidgetProvider>{children}</AIWidgetProvider>
+    </SessionProvider>
+  );
 }
-</AIWidgetProvider>
