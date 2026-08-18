@@ -5,7 +5,7 @@
   "description": "Emek E-LIBRARY — A Valley Where Truth is Found. A public Christian digital library for Bible college students.",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma generate && prisma db push --accept-data-loss && next build",
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
