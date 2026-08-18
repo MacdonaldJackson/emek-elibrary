@@ -1,0 +1,168 @@
+// Emek E-LIBRARY — Prisma schema
+// "A Valley Where Truth is Found."
+//
+// Notes:
+// - Auth uses NextAuth's Credentials provider with JWT sessions, so no
+//   Account/Session/VerificationToken tables are required. If OAuth
+//   providers (Google, etc.) are added later, run `npx prisma migrate dev`
+//   after adding the standard NextAuth Prisma adapter models.
+// - BookEmbedding stores vector embeddings for retrieval-augmented AI
+//   answers. It requires the `pgvector` Postgres extension:
+//     CREATE EXTENSION IF NOT EXISTS vector;
+//   Prisma models the column as `Unsupported("vector(1536)")` since Prisma
+//   doesn't have a native vector type; similarity queries are written as
+//   raw SQL (see src/lib/ai/retrieval.ts).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum AccessLevel {
+  PUBLIC     // freely readable by any signed-in user
+  RESTRICTED // licensed content; gated for future tiers/entitlements
+}
+
+enum ContentType {
+  PAGE_IMAGES // book is a sequence of page images (scans) — used by the page-flip reader
+  TEXT        // book is stored as structured text/HTML per page
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(USER)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  readingProgress ReadingProgress[]
+  bookmarks       Bookmark[]
+  chatMessages    ChatMessage[]
+
+  @@index([email])
+}
+
+model Category {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?
+  // optional self-relation so subcategories (e.g. "Church History > Reformation") are possible later
+  parentId    String?
+  parent      Category?  @relation("CategoryToSubcategory", fields: [parentId], references: [id])
+  children    Category[] @relation("CategoryToSubcategory")
+
+  books Book[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([slug])
+}
+
+model Book {
+  id           String      @id @default(cuid())
+  title        String
+  author       String
+  description  String?
+  coverImageUrl String?
+  language     String      @default("en")
+  publishedYear Int?
+  pageCount    Int         @default(0)
+  contentType  ContentType @default(PAGE_IMAGES)
+  accessLevel  AccessLevel @default(PUBLIC)
+
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id])
+
+  pages           BookPage[]
+  embeddings      BookEmbedding[]
+  readingProgress ReadingProgress[]
+  bookmarks       Bookmark[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([categoryId])
+  @@index([title])
+  @@index([accessLevel])
+}
+
+model BookPage {
+  id          String  @id @default(cuid())
+  bookId      String
+  book        Book    @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  pageNumber  Int
+  imageUrl    String? // used when contentType = PAGE_IMAGES
+  textContent String? // used when contentType = TEXT, and always populated for AI indexing when available
+
+  createdAt DateTime @default(now())
+
+  @@unique([bookId, pageNumber])
+  @@index([bookId])
+}
+
+// Chunked text + embedding vector per book, used for AI "wider library" retrieval.
+model BookEmbedding {
+  id        String @id @default(cuid())
+  bookId    String
+  book      Book   @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  pageId    String?
+  chunkText String
+
+  /// pgvector column — see extension note above. Populated/queried via raw SQL.
+  embedding Unsupported("vector(1536)")?
+
+  createdAt DateTime @default(now())
+
+  @@index([bookId])
+}
+
+model ReadingProgress {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bookId     String
+  book       Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  lastPage   Int      @default(1)
+  updatedAt  DateTime @updatedAt
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, bookId])
+  @@index([userId])
+}
+
+model Bookmark {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bookId    String
+  book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, bookId])
+}
+
+// Stores AI widget conversation turns for optional history / auditing.
+model ChatMessage {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bookId    String?  // book open at time of question, if any
+  role      String   // "user" | "assistant"
+  content   String
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
